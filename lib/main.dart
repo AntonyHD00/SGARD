@@ -20,6 +20,7 @@ class MyApp extends StatelessWidget {
       title: 'SGARD Revolution',
       theme: ThemeData(
         primaryColor: Color(0xFF1E3A8A),
+
         hintColor: Color(0xFFF59E0B),
         textTheme: TextTheme(
           displayLarge: TextStyle(
