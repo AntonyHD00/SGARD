@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "823039614157",
+    "project_id": "sgard-d50cf",
+    "storage_bucket": "sgard-d50cf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:823039614157:android:fc0319d672cea0db695d84",
+        "android_client_info": {
+          "package_name": "com.example.proyectofinal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvH6sk7PACkQzshMtpGxKw5elpmLNQszE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
