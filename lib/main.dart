@@ -8,7 +8,7 @@ import 'dart:math' as math;
 import 'package:proyectofinal/views/Perfilscreen.dart';
 import 'package:proyectofinal/views/VisualizarCentrosScreen.dart';
 import 'package:proyectofinal/views/registrocentroscreen.dart';
-
+import 'package:proyectofinal/views/LoginScreen.dart'; 
 void main() {
   runApp(ChangeNotifierProvider(create: (_) => AppState(), child: MyApp()));
 }
@@ -36,7 +36,7 @@ class MyApp extends StatelessWidget {
         ),
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: HomeScreen(),
+      home: LoginScreen(),
     );
   }
 }
