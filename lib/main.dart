@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart'; // Asegúrate de que esta ruta es correcta
 import 'package:proyectofinal/views/Dashboard.dart';
 import 'package:proyectofinal/views/DonacionesScreen.dart';
 import 'package:proyectofinal/views/InventariosScreen.dart';
 import 'dart:math' as math;
-
 import 'package:proyectofinal/views/Perfilscreen.dart';
 import 'package:proyectofinal/views/VisualizarCentrosScreen.dart';
 import 'package:proyectofinal/views/registrocentroscreen.dart';
-import 'package:proyectofinal/views/LoginScreen.dart'; 
-void main() {
+import 'package:proyectofinal/views/LoginScreen.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   runApp(ChangeNotifierProvider(create: (_) => AppState(), child: MyApp()));
 }
 

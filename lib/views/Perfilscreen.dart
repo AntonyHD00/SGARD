@@ -1,4 +1,8 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:proyectofinal/views/LoginScreen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:math' as math;
 
 class PerfilScreen extends StatefulWidget {
@@ -6,8 +10,8 @@ class PerfilScreen extends StatefulWidget {
   _PerfilScreenState createState() => _PerfilScreenState();
 }
 
-class _PerfilScreenState extends State<PerfilScreen>
-    with SingleTickerProviderStateMixin {
+class _PerfilScreenState extends State<PerfilScreen> with SingleTickerProviderStateMixin {
+  late String _uid;
   late AnimationController _controller;
   late Animation<double> _animation;
   late Animation<double> _pulseAnimation;
@@ -15,6 +19,8 @@ class _PerfilScreenState extends State<PerfilScreen>
   @override
   void initState() {
     super.initState();
+    _loadUid();
+
     _controller = AnimationController(
       vsync: this,
       duration: Duration(seconds: 10),
@@ -23,10 +29,19 @@ class _PerfilScreenState extends State<PerfilScreen>
       parent: _controller,
       curve: Curves.easeInOutQuad,
     );
-    _pulseAnimation = Tween<double>(
-      begin: 0.95,
-      end: 1.05,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  Future<void> _loadUid() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? uid = prefs.getString('uid');
+    if (uid != null) {
+      setState(() {
+        _uid = uid;
+      });
+    } else {
+      Navigator.pushReplacementNamed(context, '/login');
+    }
   }
 
   @override
@@ -37,123 +52,169 @@ class _PerfilScreenState extends State<PerfilScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF1E3A8A), Color(0xFFF59E0B)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                stops: [0.0, _animation.value],
+    if (_uid.isEmpty) {
+      return Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return Scaffold(
+            body: Center(child: Text("Usuario no autenticado")),
+          );
+        }
+
+        // El usuario está autenticado, obtenemos sus datos
+        return StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance.collection('users').doc(_uid).snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (!snapshot.hasData || !snapshot.data!.exists) {
+              return Scaffold(
+                body: Center(child: Text("Datos del usuario no encontrados")),
+              );
+            }
+
+            var userData = snapshot.data!.data() as Map<String, dynamic>;
+
+            String cedula = userData['cedula'] ?? 'No disponible';
+            String institucion = userData['institucion'] ?? 'No disponible';
+            String role = userData['role'] ?? 'No disponible';
+            String email = userData['email'] ?? 'No disponible';
+            String phone = userData['phone'] ?? 'No disponible';
+            String contrasena = '********'; // Simulación de la contraseña
+            String username = userData['username'] ?? 'No disponible'; // Extraemos el nombre de usuario
+
+            return Scaffold(
+              appBar: AppBar(
+                title: Text('Perfil'),
+                backgroundColor: Color(0xFF1E3A8A),
+                actions: [
+                  IconButton(
+                    icon: Icon(Icons.settings),
+                    onPressed: () {
+                      // Acción al hacer clic en el icono de configuración
+                    },
+                  ),
+                ],
               ),
-            ),
-            child: Stack(
-              children: [
-                // Fondo con líneas y círculos animados
-                _buildAnimatedBackground(),
-                // Contenido principal
-                Center(
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 20,
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // Avatar con efecto pulsante
-                          AnimatedBuilder(
-                            animation: _pulseAnimation,
-                            builder: (context, child) {
-                              return Transform.scale(
-                                scale: _pulseAnimation.value,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: RadialGradient(
-                                      colors: [Colors.white, Color(0xFFDC2626)],
-                                      stops: [0.5, 1.0],
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Color(
-                                          0xFFDC2626,
-                                        ).withOpacity(0.6),
-                                        blurRadius: 20,
-                                        spreadRadius: 5,
-                                        offset: Offset(0, 5),
-                                      ),
-                                    ],
-                                  ),
-                                  child: CircleAvatar(
-                                    radius: 70,
-                                    backgroundColor: Color(0xFF1E3A8A),
-                                    child: Icon(
-                                      Icons.person,
-                                      size: 90,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                          SizedBox(height: 20),
-                          // Nombre con animación
-                          AnimatedOpacity(
-                            duration: Duration(milliseconds: 1000),
-                            opacity: _animation.value,
-                            child: Text(
-                              'WILLIAN GUERRERO',
-                              style: TextStyle(
-                                fontSize: 36,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black26,
-                                    offset: Offset(3, 3),
-                                    blurRadius: 8,
-                                  ),
-                                ],
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          SizedBox(height: 30),
-                          // Detalles en tarjetas flotantes
-                          _buildDetailCard('Número de Cédula', '028-6655889-1'),
-                          _buildDetailCard('Institución', 'Gobernación'),
-                          _buildDetailCard(
-                            'Role',
-                            'Encargado de Centro de Acopio (SPM)',
-                          ),
-                          _buildDetailCard(
-                            'Correo',
-                            'Willianguerrero001@gmail.com',
-                          ),
-                          _buildDetailCard('Teléfono', '+1(809) 589-6514'),
-                          _buildDetailCard('Contraseña', '********'),
-                          SizedBox(height: 40),
-                          // Botón con efecto neón
-                          _buildNeonButton('CERRAR SESIÓN'),
-                        ],
+              body: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Container(
+                    width: double.infinity,
+                    height: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF1E3A8A), Color(0xFFF59E0B)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        stops: [0.0, _animation.value],
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+                    child: Stack(
+                      children: [
+                        _buildAnimatedBackground(),
+                        Center(
+                          child: SingleChildScrollView(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  AnimatedBuilder(
+                                    animation: _pulseAnimation,
+                                    builder: (context, child) {
+                                      return Transform.scale(
+                                        scale: _pulseAnimation.value,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            gradient: RadialGradient(
+                                              colors: [Colors.white, Color(0xFFDC2626)],
+                                              stops: [0.5, 1.0],
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Color(0xFFDC2626).withOpacity(0.6),
+                                                blurRadius: 20,
+                                                spreadRadius: 5,
+                                                offset: Offset(0, 5),
+                                              ),
+                                            ],
+                                          ),
+                                          child: CircleAvatar(
+                                            radius: 70,
+                                            backgroundColor: Color(0xFF1E3A8A),
+                                            child: Icon(
+                                              Icons.person,
+                                              size: 90,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  SizedBox(height: 20),
+                                  AnimatedOpacity(
+                                    duration: Duration(milliseconds: 1000),
+                                    opacity: _animation.value,
+                                    child: Text(
+                                      username, // Aquí se muestra el nombre de usuario
+                                      style: TextStyle(
+                                        fontSize: 36,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black,
+                                        shadows: [
+                                          Shadow(
+                                            color: Colors.black26,
+                                            offset: Offset(3, 3),
+                                            blurRadius: 8,
+                                          ),
+                                        ],
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                  SizedBox(height: 30),
+                                  _buildDetailCard('Número de Cédula', cedula),
+                                  _buildDetailCard('Institución', institucion),
+                                  _buildDetailCard('Role', role),
+                                  _buildDetailCard('Correo', email),
+                                  _buildDetailCard('Teléfono', phone),
+                                  _buildDetailCard('Contraseña', contrasena),
+                                  SizedBox(height: 40),
+                                  _buildNeonButton('CERRAR SESIÓN'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -221,49 +282,55 @@ class _PerfilScreenState extends State<PerfilScreen>
   }
 
   Widget _buildNeonButton(String text) {
-    return GestureDetector(
-      onTap: () {},
-      child: MouseRegion(
-        onEnter: (_) => setState(() {}),
-        onExit: (_) => setState(() {}),
-        child: AnimatedContainer(
-          duration: Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(vertical: 15, horizontal: 40),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFDC2626), Color(0xFFF87171)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+  return GestureDetector(
+    onTap: () {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => LoginScreen()),
+      );
+    },
+    child: MouseRegion(
+      onEnter: (_) => setState(() {}),
+      onExit: (_) => setState(() {}),
+      child: AnimatedContainer(
+        duration: Duration(milliseconds: 200),
+        padding: EdgeInsets.symmetric(vertical: 15, horizontal: 40),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFFDC2626), Color(0xFFF87171)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(25),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0xFFDC2626).withOpacity(0.6),
+              spreadRadius: 5,
+              blurRadius: 15,
+              offset: Offset(0, 8),
             ),
-            borderRadius: BorderRadius.circular(25),
-            boxShadow: [
-              BoxShadow(
-                color: Color(0xFFDC2626).withOpacity(0.6),
-                spreadRadius: 5,
-                blurRadius: 15,
-                offset: Offset(0, 8),
+          ],
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            shadows: [
+              Shadow(
+                color: Colors.white.withOpacity(0.5),
+                blurRadius: 10,
+                offset: Offset(0, 0),
               ),
             ],
           ),
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              shadows: [
-                Shadow(
-                  color: Colors.white.withOpacity(0.5),
-                  blurRadius: 10,
-                  offset: Offset(0, 0),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
+
 }
 
 class _BackgroundPainter extends CustomPainter {
