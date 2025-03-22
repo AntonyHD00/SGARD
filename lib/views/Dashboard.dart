@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'dart:math' as math;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DashboardScreen extends StatefulWidget {
   @override
@@ -11,6 +12,16 @@ class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
+
+  // Variables para almacenar datos reales
+  int _totalDonaciones = 0;
+  int _centrosActivos = 0;
+  String _articuloMasDonado = 'N/A';
+  Map<String, int> _donacionesPorProvincia = {};
+  Map<String, int> _distribucionArticulos = {};
+  Map<String, int> _tendenciaDonaciones = {};
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   void initState() {
@@ -23,12 +34,170 @@ class _DashboardScreenState extends State<DashboardScreen>
       parent: _controller,
       curve: Curves.easeInOutQuad,
     );
+
+    // Cargar datos reales al iniciar
+    _cargarDatos();
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  // Función para cargar datos reales desde Firestore
+  Future<void> _cargarDatos() async {
+    try {
+      // 1. Total de donaciones
+      final donacionesSnapshot = await _firestore.collection('donaciones').get();
+      setState(() {
+        _totalDonaciones = donacionesSnapshot.docs.length;
+      });
+
+      // 2. Centros activos
+      final centrosSnapshot = await _firestore.collection('centros_de_acopios').get();
+      setState(() {
+        _centrosActivos = centrosSnapshot.docs.length;
+      });
+
+      // 3. Artículo más donado y distribución de artículos
+      Map<String, int> articulosCount = {};
+      for (var doc in donacionesSnapshot.docs) {
+        final articulo = doc['articulo'] as String;
+        articulosCount[articulo] = (articulosCount[articulo] ?? 0) + 1;
+      }
+      setState(() {
+        _distribucionArticulos = articulosCount;
+        if (articulosCount.isNotEmpty) {
+          _articuloMasDonado = articulosCount.entries
+              .reduce((a, b) => a.value > b.value ? a : b)
+              .key;
+        }
+      });
+
+      // 4. Donaciones por provincia
+      Map<String, int> donacionesPorProvincia = {};
+      for (var doc in donacionesSnapshot.docs) {
+        final provincia = doc['provincia'] as String;
+        donacionesPorProvincia[provincia] = (donacionesPorProvincia[provincia] ?? 0) + 1;
+      }
+      setState(() {
+        _donacionesPorProvincia = donacionesPorProvincia;
+      });
+
+      // 5. Tendencia de donaciones (últimos 6 meses)
+      Map<String, int> tendencia = {
+        'Ene': 0,
+        'Feb': 0,
+        'Mar': 0,
+        'Abr': 0,
+        'May': 0,
+        'Jun': 0,
+      };
+      final now = DateTime.now();
+      for (var doc in donacionesSnapshot.docs) {
+        final timestamp = (doc['timestamp'] as Timestamp?)?.toDate();
+        if (timestamp != null) {
+          final monthDiff = (now.year - timestamp.year) * 12 + now.month - timestamp.month;
+          if (monthDiff >= 0 && monthDiff < 6) {
+            final monthName = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'][5 - monthDiff];
+            tendencia[monthName] = (tendencia[monthName] ?? 0) + 1;
+          }
+        }
+      }
+      setState(() {
+        _tendenciaDonaciones = tendencia;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar datos: $e')),
+      );
+    }
+  }
+
+  // Función para mostrar el diálogo de detalles
+  void _mostrarDetalles() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Stack(
+            children: [
+              Container(
+                padding: EdgeInsets.all(20),
+                margin: EdgeInsets.only(top: 45),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 10,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(height: 20),
+                    Text(
+                      'Detalles de Donaciones por Provincia',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    _buildDetallesTable(),
+                    SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFDC2626),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 15, horizontal: 30),
+                      ),
+                      child: Text(
+                        'Cerrar',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                child: CircleAvatar(
+                  backgroundColor: Color(0xFF1E3A8A),
+                  radius: 45,
+                  child: Icon(
+                    Icons.info,
+                    size: 50,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -83,17 +252,17 @@ class _DashboardScreenState extends State<DashboardScreen>
                           children: [
                             _buildStatCard(
                               'Total Donaciones',
-                              '2,500',
+                              _totalDonaciones.toString(),
                               Icons.volunteer_activism,
                             ),
                             _buildStatCard(
                               'Centros Activos',
-                              '6',
+                              _centrosActivos.toString(),
                               Icons.location_city,
                             ),
                             _buildStatCard(
                               'Artículos Más Donados',
-                              'Arroz',
+                              _articuloMasDonado,
                               Icons.local_dining,
                             ),
                           ],
@@ -105,7 +274,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         SizedBox(height: 40),
                         _buildLineChart(),
                         SizedBox(height: 40),
-                        Center(child: _buildNeonButton('VER DETALLES')),
+                        Center(child: _buildNeonButton('VER DETALLES', onTap: _mostrarDetalles)),
                       ],
                     ),
                   ),
@@ -176,6 +345,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildBarChart() {
+    // Obtener las 4 provincias con más donaciones
+    final sortedProvincias = _donacionesPorProvincia.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final topProvincias = sortedProvincias.take(4).toList();
+
     return AnimatedContainer(
       duration: Duration(milliseconds: 500),
       padding: EdgeInsets.all(20),
@@ -194,7 +368,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Donaciones por Centro',
+            'Donaciones por Provincia',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -207,7 +381,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: 1000,
+                maxY: topProvincias.isNotEmpty
+                    ? topProvincias.first.value.toDouble() + 10
+                    : 100,
                 barTouchData: BarTouchData(enabled: true),
                 titlesData: FlTitlesData(
                   show: true,
@@ -219,18 +395,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                           color: Colors.black87,
                           fontSize: 14,
                         );
-                        switch (value.toInt()) {
-                          case 0:
-                            return Text('Consuelo', style: style);
-                          case 1:
-                            return Text('SPM', style: style);
-                          case 2:
-                            return Text('Los Llanos', style: style);
-                          case 3:
-                            return Text('Quisqueya', style: style);
-                          default:
-                            return Text('', style: style);
+                        if (value.toInt() < topProvincias.length) {
+                          return Text(topProvincias[value.toInt()].key, style: style);
                         }
+                        return Text('', style: style);
                       },
                     ),
                   ),
@@ -239,32 +407,22 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                 ),
                 borderData: FlBorderData(show: false),
-                barGroups: [
-                  BarChartGroupData(
-                    x: 0,
+                barGroups: List.generate(topProvincias.length, (index) {
+                  return BarChartGroupData(
+                    x: index,
                     barRods: [
-                      BarChartRodData(toY: 500, color: Color(0xFFDC2626)),
+                      BarChartRodData(
+                        toY: topProvincias[index].value.toDouble(),
+                        color: [
+                          Color(0xFFDC2626),
+                          Color(0xFFF59E0B),
+                          Color(0xFF1E3A8A),
+                          Colors.grey,
+                        ][index % 4],
+                      ),
                     ],
-                  ),
-                  BarChartGroupData(
-                    x: 1,
-                    barRods: [
-                      BarChartRodData(toY: 800, color: Color(0xFFF59E0B)),
-                    ],
-                  ),
-                  BarChartGroupData(
-                    x: 2,
-                    barRods: [
-                      BarChartRodData(toY: 300, color: Color(0xFF1E3A8A)),
-                    ],
-                  ),
-                  BarChartGroupData(
-                    x: 3,
-                    barRods: [
-                      BarChartRodData(toY: 600, color: Color(0xFFDC2626)),
-                    ],
-                  ),
-                ],
+                  );
+                }),
               ),
             ),
           ),
@@ -274,6 +432,12 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildPieChart() {
+    // Obtener los 4 artículos más donados
+    final sortedArticulos = _distribucionArticulos.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final topArticulos = sortedArticulos.take(4).toList();
+    final totalArticulos = _distribucionArticulos.values.reduce((a, b) => a + b);
+
     return AnimatedContainer(
       duration: Duration(milliseconds: 500),
       padding: EdgeInsets.all(20),
@@ -304,32 +468,30 @@ class _DashboardScreenState extends State<DashboardScreen>
             height: 200,
             child: PieChart(
               PieChartData(
-                sections: [
-                  PieChartSectionData(
-                    value: 40,
-                    title: 'Arroz',
-                    color: Color(0xFFDC2626),
-                    titleStyle: TextStyle(fontSize: 14, color: Colors.white),
-                  ),
-                  PieChartSectionData(
-                    value: 30,
-                    title: 'Habichuelas',
-                    color: Color(0xFFF59E0B),
-                    titleStyle: TextStyle(fontSize: 14, color: Colors.white),
-                  ),
-                  PieChartSectionData(
-                    value: 20,
-                    title: 'Aceite',
-                    color: Color(0xFF1E3A8A),
-                    titleStyle: TextStyle(fontSize: 14, color: Colors.white),
-                  ),
-                  PieChartSectionData(
-                    value: 10,
-                    title: 'Otros',
-                    color: Colors.grey,
-                    titleStyle: TextStyle(fontSize: 14, color: Colors.white),
-                  ),
-                ],
+                sections: topArticulos.isEmpty
+                    ? [
+                        PieChartSectionData(
+                          value: 1,
+                          title: 'Sin datos',
+                          color: Colors.grey,
+                          titleStyle: TextStyle(fontSize: 14, color: Colors.white),
+                        ),
+                      ]
+                    : topArticulos.asMap().entries.map((entry) {
+                        int index = entry.key;
+                        var articulo = entry.value;
+                        return PieChartSectionData(
+                          value: articulo.value.toDouble(),
+                          title: '${articulo.key}\n${((articulo.value / totalArticulos) * 100).toStringAsFixed(1)}%',
+                          color: [
+                            Color(0xFFDC2626),
+                            Color(0xFFF59E0B),
+                            Color(0xFF1E3A8A),
+                            Colors.grey,
+                          ][index % 4],
+                          titleStyle: TextStyle(fontSize: 14, color: Colors.white),
+                        );
+                      }).toList(),
                 sectionsSpace: 2,
                 centerSpaceRadius: 40,
               ),
@@ -408,16 +570,18 @@ class _DashboardScreenState extends State<DashboardScreen>
                 minX: 0,
                 maxX: 5,
                 minY: 0,
-                maxY: 1000,
+                maxY: _tendenciaDonaciones.values.isNotEmpty
+                    ? _tendenciaDonaciones.values.reduce((a, b) => a > b ? a : b).toDouble() + 10
+                    : 100,
                 lineBarsData: [
                   LineChartBarData(
                     spots: [
-                      FlSpot(0, 300),
-                      FlSpot(1, 500),
-                      FlSpot(2, 400),
-                      FlSpot(3, 700),
-                      FlSpot(4, 600),
-                      FlSpot(5, 800),
+                      FlSpot(0, _tendenciaDonaciones['Ene']?.toDouble() ?? 0),
+                      FlSpot(1, _tendenciaDonaciones['Feb']?.toDouble() ?? 0),
+                      FlSpot(2, _tendenciaDonaciones['Mar']?.toDouble() ?? 0),
+                      FlSpot(3, _tendenciaDonaciones['Abr']?.toDouble() ?? 0),
+                      FlSpot(4, _tendenciaDonaciones['May']?.toDouble() ?? 0),
+                      FlSpot(5, _tendenciaDonaciones['Jun']?.toDouble() ?? 0),
                     ],
                     isCurved: true,
                     color: Color(0xFFDC2626),
@@ -433,9 +597,113 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildNeonButton(String text) {
+  Widget _buildDetallesTable() {
+    return Container(
+      constraints: BoxConstraints(maxHeight: 400),
+      child: SingleChildScrollView(
+        child: DataTable(
+          columnSpacing: 20,
+          dataRowHeight: 60,
+          headingRowHeight: 60,
+          headingRowColor: MaterialStateColor.resolveWith((states) => Color(0xFF1E3A8A)),
+          border: TableBorder(
+            horizontalInside: BorderSide(color: Colors.grey.shade300, width: 1),
+            verticalInside: BorderSide(color: Colors.grey.shade300, width: 1),
+            top: BorderSide(color: Colors.grey.shade300, width: 1),
+            bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+            left: BorderSide(color: Colors.grey.shade300, width: 1),
+            right: BorderSide(color: Colors.grey.shade300, width: 1),
+          ),
+          columns: [
+            DataColumn(
+              label: Text(
+                'Provincia',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Total Donaciones',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                'Artículo Más Donado',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+          rows: _donacionesPorProvincia.entries.map((entry) {
+            final provincia = entry.key;
+            final total = entry.value;
+
+            // Calcular el artículo más donado en esta provincia
+            Map<String, int> articulosProvincia = {};
+            _firestore
+                .collection('donaciones')
+                .where('provincia', isEqualTo: provincia)
+                .get()
+                .then((snapshot) {
+              for (var doc in snapshot.docs) {
+                final articulo = doc['articulo'] as String;
+                articulosProvincia[articulo] = (articulosProvincia[articulo] ?? 0) + 1;
+              }
+            });
+
+            final articuloMasDonado = articulosProvincia.isNotEmpty
+                ? articulosProvincia.entries
+                    .reduce((a, b) => a.value > b.value ? a : b)
+                    .key
+                : 'N/A';
+
+            return DataRow(
+              color: MaterialStateColor.resolveWith((states) =>
+                  _donacionesPorProvincia.keys.toList().indexOf(provincia) % 2 == 0
+                      ? Colors.grey.shade100
+                      : Colors.white),
+              cells: [
+                DataCell(
+                  Text(
+                    provincia,
+                    style: TextStyle(fontSize: 16, color: Colors.black87),
+                  ),
+                ),
+                DataCell(
+                  Text(
+                    total.toString(),
+                    style: TextStyle(fontSize: 16, color: Colors.black87),
+                  ),
+                ),
+                DataCell(
+                  Text(
+                    articuloMasDonado,
+                    style: TextStyle(fontSize: 16, color: Colors.black87),
+                  ),
+                ),
+              ],
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNeonButton(String text, {VoidCallback? onTap}) {
     return GestureDetector(
-      onTap: () {},
+      onTap: onTap ?? () {},
       child: AnimatedContainer(
         duration: Duration(milliseconds: 200),
         padding: EdgeInsets.symmetric(vertical: 15, horizontal: 40),
@@ -482,11 +750,10 @@ class _BackgroundPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint =
-        Paint()
-          ..color = Colors.white.withOpacity(0.1)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2;
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
 
     final center = Offset(size.width / 2, size.height / 2);
 

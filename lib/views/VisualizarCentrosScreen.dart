@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-
 import 'dart:math' as math;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class VisualizarCentrosScreen extends StatefulWidget {
   @override
-  _VisualizarCentrosScreenState createState() =>
-      _VisualizarCentrosScreenState();
+  _VisualizarCentrosScreenState createState() => _VisualizarCentrosScreenState();
 }
 
 class _VisualizarCentrosScreenState extends State<VisualizarCentrosScreen>
@@ -13,6 +12,44 @@ class _VisualizarCentrosScreenState extends State<VisualizarCentrosScreen>
   late AnimationController _controller;
   late Animation<double> _animation;
   String? _provincia = 'San Pedro de Macorís';
+  List<Map<String, String>> _centros = []; // Lista de centros de acopio
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Lista de provincias de la República Dominicana
+  final List<String> _provincias = [
+    'Azua',
+    'Bahoruco',
+    'Barahona',
+    'Dajabón',
+    'Distrito Nacional',
+    'Duarte',
+    'El Seibo',
+    'Elías Piña',
+    'Espaillat',
+    'Hato Mayor',
+    'Hermanas Mirabal',
+    'Independencia',
+    'La Altagracia',
+    'La Romana',
+    'La Vega',
+    'María Trinidad Sánchez',
+    'Monseñor Nouel',
+    'Monte Cristi',
+    'Monte Plata',
+    'Pedernales',
+    'Peravia',
+    'Puerto Plata',
+    'Samaná',
+    'San Cristóbal',
+    'San José de Ocoa',
+    'San Juan',
+    'San Pedro de Macorís',
+    'Sánchez Ramírez',
+    'Santiago',
+    'Santiago Rodríguez',
+    'Santo Domingo',
+    'Valverde',
+  ]..sort();
 
   @override
   void initState() {
@@ -25,12 +62,235 @@ class _VisualizarCentrosScreenState extends State<VisualizarCentrosScreen>
       parent: _controller,
       curve: Curves.easeInOutQuad,
     );
+
+    // Cargar los centros iniciales para la provincia por defecto
+    _cargarCentros(_provincia!);
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  // Función para cargar los centros de acopio según la provincia
+  Future<void> _cargarCentros(String provincia) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('centros_de_acopios')
+          .where('provincia', isEqualTo: provincia)
+          .get();
+
+      setState(() {
+        _centros = querySnapshot.docs.map((doc) {
+          return {
+            'codigo': doc.data().containsKey('codigo') ? doc['codigo'] as String : 'N/A',
+            'municipio': doc['municipio'] as String,
+          };
+        }).toList();
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cargar centros: $e')),
+      );
+    }
+  }
+
+  // Función para mostrar un diálogo con detalles completos
+  void _mostrarDetallesCentros() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Stack(
+            children: [
+              Container(
+                padding: EdgeInsets.all(20),
+                margin: EdgeInsets.only(top: 45),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 10,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(height: 20),
+                    Text(
+                      'Detalles de Centros - $_provincia',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    Container(
+                      constraints: BoxConstraints(maxHeight: 400),
+                      child: SingleChildScrollView(
+                        child: StreamBuilder<QuerySnapshot>(
+                          stream: _firestore
+                              .collection('centros_de_acopios')
+                              .where('provincia', isEqualTo: _provincia)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return Center(child: CircularProgressIndicator());
+                            }
+                            if (snapshot.hasError) {
+                              return Center(child: Text('Error: ${snapshot.error}'));
+                            }
+                            final centros = snapshot.data?.docs ?? [];
+                            if (centros.isEmpty) {
+                              return Center(child: Text('No hay centros registrados'));
+                            }
+
+                            return DataTable(
+                              columnSpacing: 20,
+                              dataRowHeight: 60,
+                              headingRowHeight: 60,
+                              headingRowColor: MaterialStateColor.resolveWith((states) => Color(0xFF1E3A8A)),
+                              border: TableBorder(
+                                horizontalInside: BorderSide(color: Colors.grey.shade300, width: 1),
+                                verticalInside: BorderSide(color: Colors.grey.shade300, width: 1),
+                                top: BorderSide(color: Colors.grey.shade300, width: 1),
+                                bottom: BorderSide(color: Colors.grey.shade300, width: 1),
+                                left: BorderSide(color: Colors.grey.shade300, width: 1),
+                                right: BorderSide(color: Colors.grey.shade300, width: 1),
+                              ),
+                              columns: [
+                                DataColumn(
+                                  label: Text(
+                                    'Código',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                DataColumn(
+                                  label: Text(
+                                    'Municipio',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                DataColumn(
+                                  label: Text(
+                                    'Capacidad',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                DataColumn(
+                                  label: Text(
+                                    'Encargado',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              rows: centros.map((doc) {
+                                final data = doc.data() as Map<String, dynamic>;
+                                return DataRow(
+                                  color: MaterialStateColor.resolveWith((states) =>
+                                      centros.indexOf(doc) % 2 == 0 ? Colors.grey.shade100 : Colors.white),
+                                  cells: [
+                                    DataCell(
+                                      Text(
+                                        data['codigo'] ?? 'N/A',
+                                        style: TextStyle(fontSize: 16, color: Colors.black87),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        data['municipio'] ?? 'N/A',
+                                        style: TextStyle(fontSize: 16, color: Colors.black87),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        data['capacidad'] ?? 'N/A',
+                                        style: TextStyle(fontSize: 16, color: Colors.black87),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        data['encargado'] ?? 'N/A',
+                                        style: TextStyle(fontSize: 16, color: Colors.black87),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }).toList(),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFDC2626),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        padding: EdgeInsets.symmetric(vertical: 15, horizontal: 30),
+                      ),
+                      child: Text(
+                        'Cerrar',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                child: CircleAvatar(
+                  backgroundColor: Color(0xFF1E3A8A),
+                  radius: 45,
+                  child: Icon(
+                    Icons.list,
+                    size: 50,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -112,21 +372,23 @@ class _VisualizarCentrosScreenState extends State<VisualizarCentrosScreen>
                                 ),
                               ),
                               value: _provincia,
-                              items:
-                                  ['San Pedro de Macorís'].map((String item) {
-                                    return DropdownMenuItem<String>(
-                                      value: item,
-                                      child: Text(
-                                        item,
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
+                              items: _provincias.map((String item) {
+                                return DropdownMenuItem<String>(
+                                  value: item,
+                                  child: Text(
+                                    item,
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                );
+                              }).toList(),
                               onChanged: (value) {
-                                setState(() => _provincia = value);
+                                setState(() {
+                                  _provincia = value;
+                                  _cargarCentros(value!);
+                                });
                               },
                             ),
                           ),
@@ -135,7 +397,7 @@ class _VisualizarCentrosScreenState extends State<VisualizarCentrosScreen>
                           _buildLocationList(),
                           SizedBox(height: 40),
                           // Botón con efecto 3D
-                          _buildNeonButton('VER MAPA INTERACTIVO'),
+                          _buildNeonButton('VER DETALLES COMPLETOS'),
                         ],
                       ),
                     ),
@@ -157,15 +419,6 @@ class _VisualizarCentrosScreenState extends State<VisualizarCentrosScreen>
   }
 
   Widget _buildLocationList() {
-    final locations = [
-      'Calle Isidro Barros #77, Municipio Consuelo',
-      'Avenida Independencia #2, Municipio SPM',
-      'Calle Mella #58, Sector Los Almendros, Municipio Los Llanos',
-      'Calle 30 de Marzo #76, Sector La Ciénaga, Municipio Quisqueya',
-      'Calle Juan Bosch #56, Residential Costa Azul, Municipio Guayacanes',
-      'Avenida Duarte #14, Sector El Progreso, Municipio Ramón Santana',
-    ];
-
     return AnimatedContainer(
       duration: Duration(milliseconds: 500),
       padding: EdgeInsets.all(20),
@@ -182,45 +435,56 @@ class _VisualizarCentrosScreenState extends State<VisualizarCentrosScreen>
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children:
-            locations.map((location) {
-              return Padding(
-                padding: EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.location_on, color: Color(0xFFDC2626), size: 20),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        location,
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.black87,
-                          height: 1.5,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black12,
-                              offset: Offset(1, 1),
-                              blurRadius: 3,
-                            ),
-                          ],
+        children: _centros.isEmpty
+            ? [
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: Text(
+                    'No hay centros de acopio para esta provincia.',
+                    style: TextStyle(fontSize: 18, color: Colors.black54),
+                  ),
+                ),
+              ]
+            : _centros.map((centro) {
+                return Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.location_on, color: Color(0xFFDC2626), size: 20),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          centro['municipio']!,
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.black87,
+                            height: 1.5,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black12,
+                                offset: Offset(1, 1),
+                                blurRadius: 3,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
+                    ],
+                  ),
+                );
+              }).toList(),
       ),
     );
   }
 
   Widget _buildNeonButton(String text) {
     return GestureDetector(
-      onTap: () {},
+      onTap: () {
+        _mostrarDetallesCentros();
+      },
       child: MouseRegion(
-        onEnter: (_) => setState(() {}), // Simula hover para efecto
+        onEnter: (_) => setState(() {}),
         onExit: (_) => setState(() {}),
         child: AnimatedContainer(
           duration: Duration(milliseconds: 200),

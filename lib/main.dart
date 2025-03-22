@@ -4,15 +4,19 @@ import 'package:proyectofinal/views/Dashboard.dart';
 import 'package:proyectofinal/views/DonacionesScreen.dart';
 import 'package:proyectofinal/views/InventariosScreen.dart';
 import 'dart:math' as math;
-
+import 'firebase_options.dart'; 
+import 'package:firebase_core/firebase_core.dart'; // Agrega este import
 import 'package:proyectofinal/views/Perfilscreen.dart';
 import 'package:proyectofinal/views/VisualizarCentrosScreen.dart';
 import 'package:proyectofinal/views/registrocentroscreen.dart';
 import 'package:proyectofinal/views/LoginScreen.dart'; 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // Necesario para async
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform, // Configuración de Firebase
+  ); // Inicializa Firebase
   runApp(ChangeNotifierProvider(create: (_) => AppState(), child: MyApp()));
 }
-
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
