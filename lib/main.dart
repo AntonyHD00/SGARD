@@ -12,14 +12,12 @@ import 'package:proyectofinal/views/registrocentroscreen.dart';
 import 'package:proyectofinal/views/LoginScreen.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized(); // Necesario para async
   await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
+    options: DefaultFirebaseOptions.currentPlatform, // Configuración de Firebase
+  ); // Inicializa Firebase
   runApp(ChangeNotifierProvider(create: (_) => AppState(), child: MyApp()));
 }
-
 class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {

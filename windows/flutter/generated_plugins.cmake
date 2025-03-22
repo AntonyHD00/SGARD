@@ -4,7 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   cloud_firestore
-  firebase_auth
+  firebase_auth  # Esta línea se mantiene, ya que parece ser la opción correcta
   firebase_core
 )
 
